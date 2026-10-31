@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "roomba-pi"
+version = "0.1.0"
+description = "v0 control stack for a Roomba 614 rover: OI facade, reflex loop, safety arbiter"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+dependencies = [
+    "pyserial>=3.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+]
+
+[tool.setuptools]
+# pycreate2 is vendored under vendor/ and imported via sys.path, never packaged.
+packages = ["roverd", "sim"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
