@@ -230,6 +230,10 @@ class FakeRoomba:
         """From ``seconds`` on, velocity commands are accepted but nothing moves."""
         self._schedule(seconds, lambda: self._set_stalled(True))
 
+    def clear_stall_after(self, seconds: float) -> None:
+        """Release a stall scheduled by :meth:`stall_after`."""
+        self._schedule(seconds, lambda: self._set_stalled(False))
+
     def _set_stalled(self, value: bool) -> None:
         with self._lock:
             self._stalled = value

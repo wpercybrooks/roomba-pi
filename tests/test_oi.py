@@ -111,7 +111,8 @@ def test_never_sends_173(driving, fake):
     assert fake.mode == 1                          # PASSIVE
     assert fake.trap_entered is False
 
-    # Invariant 9: velocity writes live only in the facade and the watchdog.
+    # Invariant 9: velocity writes live only in the facade (and the watchdog's
+    # documented zero path); main goes through command().
     allowed = {"oi.py", "watchdog.py"}
     offenders = []
     for path in (ROOT / "roverd").glob("*.py"):
