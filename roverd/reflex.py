@@ -166,6 +166,9 @@ class Reflex:
         cfg = self.cfg
         # "Clean" means clean *driving*, not merely elapsed time: back-off and
         # rotate time must not count toward the 3 s that forgives older events.
+        # Timestamps only: stale (held) frames keep the state at DRIVE, so time
+        # spent blind still counts as dwell. The robot is moving on a held intent,
+        # so that is accepted; the stall window is stricter and ignores stale frames.
         dwell = now - max(self._drive_since, self._last_event_at)
         if dwell >= cfg.giveup_clean_s:
             self._events = 0

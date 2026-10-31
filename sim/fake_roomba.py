@@ -61,6 +61,11 @@ _SINGLE_PACKETS = {
 }
 
 
+# Opcodes the real robot accepts and we deliberately do nothing with: LED, SONG,
+# PLAY and the digit LEDs. Anything else unhandled is recorded in ``ignored``.
+_IGNORED = {139, 140, 141, 164}
+
+
 class FakeRoomba:
     """An emulated 614 on a PTY pair. ``fake.path`` is the port to open."""
 
@@ -85,6 +90,7 @@ class FakeRoomba:
         self.mode = OFF
         self.opcodes: list[int] = []
         self.writes: list[bytes] = []
+        self.ignored: list[int] = []      # opcodes accepted but not acted on (debugging)
         self.trap_entered = False
         self.buttons_byte = 0
 
@@ -363,7 +369,8 @@ class FakeRoomba:
                 self.vel_right, self.vel_left = r, l
         elif opcode == 142:               # SENSORS packet id
             self._reply_sensor(data[0])
-        # 139 LED, 140 SONG, 141 PLAY, 164 digit LEDs: accepted and ignored, like the robot.
+        elif opcode not in _IGNORED:      # e.g. getMode's 35: accepted, unanswered
+            self.ignored.append(opcode)
 
     def _apply_drive(self, velocity: int, radius: int) -> None:
         if radius == 0x8000 or radius == 0x7FFF:      # straight

@@ -154,9 +154,13 @@ def replay(path: str, *, out=print) -> int:
     """Re-run the reflex over the most recent logged run and compare transitions."""
     records = last_run(list(read_log(path)))
     meta = next((r for r in records if r.get("kind") == "meta"), None)
-    cfg_fields = dict(meta["config"]) if meta else {}
-    cfg_fields = {k: v for k, v in cfg_fields.items()
-                  if k in ReflexConfig.__dataclass_fields__}
+    cfg_fields: dict = {}
+    if meta is not None:
+        try:
+            cfg_fields = {k: v for k, v in dict(meta.get("config") or {}).items()
+                          if k in ReflexConfig.__dataclass_fields__}
+        except (TypeError, ValueError):
+            cfg_fields = {}          # a hand-edited meta must not crash the replay
     config = ReflexConfig(**cfg_fields)
 
     frames = []
@@ -170,7 +174,9 @@ def replay(path: str, *, out=print) -> int:
             return 1
     logged = [r for r in records if r.get("kind") == "transition"]
     if not frames:
-        out("REPLAY FAILED: no frame records in log")
+        run_id = meta.get("run") if meta else None
+        suffix = f" (run {run_id} has no frames)" if run_id else ""
+        out(f"REPLAY FAILED: no frame records{suffix}")
         return 1
 
     reflex = Reflex(config)

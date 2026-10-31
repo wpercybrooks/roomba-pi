@@ -124,7 +124,9 @@ python vendor/_verify_patches.py     # prove the vendored patches are intact, no
 
 `FakeRoomba` owns a PTY pair and implements the OI subset this stack uses. It integrates commanded wheel
 velocities at 10 Hz with the real geometry (`wheelbase ≈ 235 mm`; `angle = (Δright − Δleft) / 235 × 180/π`),
-models the ±1 mode offset, the Off-mode trap, and the 159 mA idle draw. Scenarios are scripted in sim time:
+models the ±1 mode offset, the Off-mode trap, and the 159 mA idle draw. Opcodes it accepts but does not act on
+are ignored; anything else it does not recognise is recorded in `fake.ignored` instead of desyncing the parser.
+Scenarios are scripted in sim time:
 
 ```python
 fake = FakeRoomba()
