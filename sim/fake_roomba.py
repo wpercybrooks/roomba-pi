@@ -97,7 +97,7 @@ class FakeRoomba:
         # -- scenario state --------------------------------------------------
         self._bumps = {"left": False, "right": False}
         self._cliff = False
-        self._wheel_drop = False
+        self._wheel_drop_bit = 0
         self._stalled = False
         self._scenarios: list[list] = []   # [at, callable, fired]
 
@@ -219,12 +219,16 @@ class FakeRoomba:
         with self._lock:
             self._cliff = value
 
-    def wheel_drop_after(self, seconds: float) -> None:
-        self._schedule(seconds, lambda: self._set_wheel_drop(True))
+    def wheel_drop_after(self, seconds: float, side: str = "left") -> None:
+        """Drop a wheel at ``seconds``; bit 2 is the right wheel, bit 3 the left."""
+        if side not in ("left", "right"):
+            raise ValueError("side must be 'left' or 'right'")
+        bit = 0x08 if side == "left" else 0x04
+        self._schedule(seconds, lambda: self._set_wheel_drop(bit))
 
-    def _set_wheel_drop(self, value: bool) -> None:
+    def _set_wheel_drop(self, bit: int) -> None:
         with self._lock:
-            self._wheel_drop = value
+            self._wheel_drop_bit = bit
 
     def stall_after(self, seconds: float) -> None:
         """From ``seconds`` on, velocity commands are accepted but nothing moves."""
@@ -384,8 +388,7 @@ class FakeRoomba:
         buf = bytearray(80)
         buf[0] = ((0x01 if self._bumps["right"] else 0)
                   | (0x02 if self._bumps["left"] else 0)
-                  | (0x04 if self._wheel_drop else 0)
-                  | (0x08 if self._wheel_drop else 0))
+                  | self._wheel_drop_bit)
         buf[1] = 0                              # wall
         if self._cliff:
             buf[3] = 1                          # cliff front-left

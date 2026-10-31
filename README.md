@@ -131,11 +131,12 @@ fake.bump_after(5.0, "left")
 fake.cliff_after(8.0)
 fake.stall_after(12.0)
 fake.clear_stall_after(15.0)
-fake.wheel_drop_after(18.0)
+fake.wheel_drop_after(18.0, "right")
 ```
 
-Tests step physics by hand (`fake.step(dt)`) with an injected clock, so the whole suite is deterministic and
-runs in milliseconds.
+Tests step physics by hand (`fake.step(dt)`) with an injected clock, so the simulation itself is deterministic
+and sub-second. The two real-time tests (watchdog firing, startup refusal) add a few hundred milliseconds; the
+whole suite stays under 5 s.
 
 ## Safety invariants (these have tests, not trust)
 

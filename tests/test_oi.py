@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import pathlib
 import struct
 import threading
@@ -20,6 +21,19 @@ MEASURED_26 = bytes.fromhex(
 MEASURED_80 = MEASURED_26 + b"\x00" * 54
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+
+def _called_names(path: pathlib.Path) -> set[str]:
+    """Every function/method name called in a module, ignoring comments and strings."""
+    names: set[str] = set()
+    for node in ast.walk(ast.parse(path.read_text())):
+        if isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Attribute):
+                names.add(func.attr)
+            elif isinstance(func, ast.Name):
+                names.add(func.id)
+    return names
 
 
 @pytest.fixture
@@ -111,15 +125,15 @@ def test_never_sends_173(driving, fake):
     assert fake.mode == 1                          # PASSIVE
     assert fake.trap_entered is False
 
-    # Invariant 9: velocity writes live only in the facade (and the watchdog's
-    # documented zero path); main goes through command().
-    allowed = {"oi.py", "watchdog.py"}
+    # Invariant 9: velocity writes live only in the facade; main goes through
+    # command(). Checked on the AST, so docstrings cannot mask or trip it.
     offenders = []
     for path in (ROOT / "roverd").glob("*.py"):
-        text = path.read_text()
-        if path.name not in allowed and ("drive_direct(" in text or ".drive(" in text):
-            offenders.append(path.name)
-        if path.name != "oi.py" and "stop_oi(" in text:
+        called = _called_names(path)
+        velocity = called & {"drive_direct", "drive"}
+        if path.name != "oi.py" and velocity:
+            offenders.append(f"{path.name}:{sorted(velocity)}")
+        if path.name != "oi.py" and "stop_oi" in called:
             offenders.append(f"{path.name}:stop_oi")
     assert offenders == []
 

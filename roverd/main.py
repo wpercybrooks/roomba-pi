@@ -21,7 +21,7 @@ from dataclasses import asdict
 
 from roverd.arbiter import Arbiter
 from roverd.log import RunLog, dict_to_frame, frame_to_dict, read_log
-from roverd.oi import Mode, NoSensorFrame, PortBusy, RoverOI
+from roverd.oi import NoSensorFrame, PortBusy, RoverOI
 from roverd.reflex import Reflex, ReflexConfig, State
 from roverd.watchdog import Watchdog
 
@@ -56,8 +56,9 @@ def run_live(port: str, *, run_for: float | None = None, log_path: str | None = 
     watchdog: Watchdog | None = None
     try:
         if log is not None:
-            log.write("meta", 0.0, config={**asdict(config), "max_speed_mm_s": max_speed_mm_s,
-                                           "tick_hz": TICK_HZ, "port": port})
+            log.write("meta", _now(clock),
+                      config={**asdict(config), "max_speed_mm_s": max_speed_mm_s,
+                              "tick_hz": TICK_HZ, "port": port})
 
         # --- startup self-check -------------------------------------------------
         oi.start()                                  # 128 -> Passive; safe, buttons live
@@ -93,7 +94,7 @@ def run_live(port: str, *, run_for: float | None = None, log_path: str | None = 
         watchdog = Watchdog(oi.zero).start()
 
         started = _now(clock)
-        next_tick = started
+        next_tick = started                       # start the cadence here, not before startup
         last_fault_at = -1.0
         stop_logged = False
 
@@ -133,6 +134,10 @@ def run_live(port: str, *, run_for: float | None = None, log_path: str | None = 
             delay = next_tick - _now(clock)
             if delay > 0:
                 sleep(delay)
+            elif delay < -TICK_S:
+                # More than a tick behind (a stale poll blocks for 100 ms). Resync
+                # instead of bursting back-to-back ticks to "catch up".
+                next_tick = _now(clock)
 
     finally:
         if watchdog is not None:
