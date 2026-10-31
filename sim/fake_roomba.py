@@ -68,7 +68,7 @@ class FakeRoomba:
         self.path = os.ttyname(self._slave)
 
         self._lock = threading.RLock()
-        self._read_lock = threading.Lock()
+        self._busy = False
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -102,6 +102,9 @@ class FakeRoomba:
         self._scenarios: list[list] = []   # [at, callable, fired]
 
         self._rx = bytearray()
+        # Test knobs for broken-link scenarios (both are no-ops by default).
+        self.burst_length = 80        # reply to 142 100 is truncated to this many bytes
+        self.bad_frame = False        # reply to 142 100 is 80 x 0xff (implausible)
         self._start_serve_thread()
 
     # ------------------------------------------------------------------ setup
@@ -148,7 +151,7 @@ class FakeRoomba:
         """Advance the physical model by ``dt`` seconds (deterministic tests)."""
         if dt <= 0:
             return
-        self._drain()
+        self.sync(0.05)                  # let commands written just before the step land
         with self._lock:
             self.sim_time += dt
             self._fire_scenarios()
@@ -159,7 +162,7 @@ class FakeRoomba:
     def _run_physics(self) -> None:
         interval = 0.1
         while not self._stop.wait(interval):
-            self._drain()
+            self.sync(0.05)
             with self._lock:
                 self.sim_time += interval
                 self._fire_scenarios()
@@ -252,44 +255,49 @@ class FakeRoomba:
             return 2 + 2 * buf[1]
         return 0                          # unknown opcode: consume nothing else
 
-    def _poll_once(self, timeout: float) -> bool:
-        """Read and parse one chunk from the host. Returns True if bytes arrived."""
-        with self._read_lock:
+    def _serve(self) -> None:
+        """The only reader of the PTY: read a chunk, parse it, answer queries."""
+        while not self._stop.is_set():
             try:
-                ready, _, _ = select.select([self._master], [], [], timeout)
+                ready, _, _ = select.select([self._master], [], [], 0.02)
             except (OSError, ValueError):
-                return False
+                break
             if not ready:
-                return False
+                continue
+            with self._lock:
+                self._busy = True
             try:
                 chunk = os.read(self._master, 4096)
             except OSError:
-                return False
+                with self._lock:
+                    self._busy = False
+                break
             if not chunk:
-                return False
+                with self._lock:
+                    self._busy = False
+                break
             with self._lock:
                 self._rx += chunk
                 self._parse()
-            return True
+                self._busy = False
 
-    def _serve(self) -> None:
-        while not self._stop.is_set():
-            self._poll_once(0.005)
-
-    def _drain(self) -> None:
-        """Parse anything already written by the host (non-blocking)."""
-        while self._poll_once(0):
-            pass
+    def _pending(self) -> bool:
+        """True if the host has written bytes the serve thread has not read yet."""
+        try:
+            ready, _, _ = select.select([self._master], [], [], 0)
+        except (OSError, ValueError):
+            return False
+        return bool(ready)
 
     def sync(self, timeout: float = 0.3) -> None:
-        """Block until the host's writes have been parsed (for test assertions)."""
+        """Block until every command the host has written has been parsed."""
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            if self._poll_once(0.005):
-                continue
-            with self._read_lock, self._lock:
-                if not self._rx:
-                    return
+            with self._lock:
+                idle = not self._busy and not self._rx
+            if idle and not self._pending():
+                return
+            time.sleep(0.001)
 
     def _parse(self) -> None:
         while self._rx:
@@ -352,6 +360,10 @@ class FakeRoomba:
             return                        # in Off mode the robot does not answer
         if packet_id == 100:
             payload = self._packet_100()
+            if self.bad_frame:
+                payload = b"\xff" * 80
+            elif self.burst_length < 80:
+                payload = payload[:self.burst_length]
         elif packet_id == 0:
             payload = self._packet_100()[:26]
         elif packet_id in _SINGLE_PACKETS:
