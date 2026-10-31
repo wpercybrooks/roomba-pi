@@ -1,0 +1,34 @@
+# venv / caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# run data — logs map your home, keep them out of history
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.jsonl
+runs/
+logs/
+captures/
+
+# local config and secrets
+robot.yaml
+.env
+*.env
+
+# models
+models/
+*.onnx
+*.pt
+*.tflite
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

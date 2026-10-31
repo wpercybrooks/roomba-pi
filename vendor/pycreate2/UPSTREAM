@@ -1,0 +1,8 @@
+upstream: pycreate2
+version:  0.8.0
+released: 2020-04-29
+source:   https://pypi.org/project/pycreate2/  (sdist pycreate2-0.8.0.tar.gz)
+home:     https://github.com/MomsFriendlyRobotCompany/pycreate2
+license:  MIT (see LICENSE)
+vendored: 2026-10-31 by Nexus, for the roomba-bot rover project
+notes:    files copied verbatim, then patched — every deviation is listed in PATCHES.md
