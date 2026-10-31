@@ -41,14 +41,23 @@ MM_PER_ENCODER_TICK = 0.47      # only used for the encoder cross-check
 # Modes as the OI numbers them; the sensor field reports mode + 1 on this unit.
 OFF, PASSIVE, SAFE, FULL = 0, 1, 2, 3
 
-# Packet ids that can be queried one at a time: (offset in packet 100, length).
+# Single-packet queries answered from packet 100: (offset, length). The offsets
+# follow pycreate2's decoder (packets.py), which is the authority for this
+# firmware: packets 32 and 33 are the three unused bytes at 36–38, and everything
+# after that lands as the decoder reads it. The ids run 7–58, in order.
 _SINGLE_PACKETS = {
     7: (0, 1), 8: (1, 1), 9: (2, 1), 10: (3, 1), 11: (4, 1), 12: (5, 1),
     13: (6, 1), 14: (7, 1), 15: (8, 1), 16: (9, 1), 17: (10, 1), 18: (11, 1),
     19: (12, 2), 20: (14, 2), 21: (16, 1), 22: (17, 2), 23: (19, 2),
-    24: (21, 1), 25: (22, 2), 26: (24, 2), 34: (39, 1), 35: (40, 1),
-    42: (43, 1), 43: (44, 2), 44: (46, 2), 45: (48, 2), 46: (50, 2),
-    47: (52, 2), 48: (54, 2), 56: (56, 1), 58: (79, 1),
+    24: (21, 1), 25: (22, 2), 26: (24, 2),
+    27: (26, 2), 28: (28, 2), 29: (30, 2), 30: (32, 2), 31: (34, 2),
+    32: (36, 2), 33: (38, 1),          # unused: the 3 zero bytes before 39
+    34: (39, 1), 35: (40, 1), 36: (41, 1), 37: (42, 1), 38: (43, 1),
+    39: (44, 2), 40: (46, 2), 41: (48, 2), 42: (50, 2), 43: (52, 2),
+    44: (54, 2), 45: (56, 1),
+    46: (57, 2), 47: (59, 2), 48: (61, 2), 49: (63, 2), 50: (65, 2),
+    51: (67, 2), 52: (69, 1), 53: (70, 1),
+    54: (71, 2), 55: (73, 2), 56: (75, 2), 57: (77, 2), 58: (79, 1),
 }
 
 
@@ -252,9 +261,15 @@ class FakeRoomba:
 
     # ---------------------------------------------------------- wire parser
     def _arg_count(self, opcode: int, buf: bytes) -> int | None:
-        """How many argument bytes follow this opcode (None = need more bytes)."""
-        fixed = {128: 0, 131: 0, 132: 0, 173: 0, 7: 0, 142: 1,
-                 137: 4, 145: 4, 139: 3, 141: 1}
+        """How many argument bytes follow this opcode (None = need more bytes).
+
+        Covers every command pycreate2 can emit. `149` (Query List) is the one
+        exception: it is length-prefixed and roverd never sends it, so it is
+        unsupported rather than guessed at.
+        """
+        fixed = {7: 0, 35: 0, 128: 0, 131: 0, 132: 0, 133: 0,
+                 137: 4, 138: 1, 139: 3, 141: 1, 142: 1, 143: 0,
+                 144: 3, 145: 4, 146: 4, 164: 4, 173: 0}
         if opcode in fixed:
             return fixed[opcode]
         if opcode == 140:                 # SONG: song, count, then 2*count bytes
@@ -348,7 +363,7 @@ class FakeRoomba:
                 self.vel_right, self.vel_left = r, l
         elif opcode == 142:               # SENSORS packet id
             self._reply_sensor(data[0])
-        # 139 LED, 140 SONG, 141 PLAY: accepted and ignored, like the robot.
+        # 139 LED, 140 SONG, 141 PLAY, 164 digit LEDs: accepted and ignored, like the robot.
 
     def _apply_drive(self, velocity: int, radius: int) -> None:
         if radius == 0x8000 or radius == 0x7FFF:      # straight

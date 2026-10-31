@@ -6,7 +6,7 @@ a log exactly.
 
     DRIVE --bump--> BACK_OFF --400 ms--> ROTATE --1 s--> DRIVE
     DRIVE --cliff/wheel drop/stall--> STOPPED (latched; reset() to leave)
-    five bump/stall events without 3 s of clean driving --> STOPPED (give-up)
+    five bump/stall events without 3 s of clean DRIVE dwell --> STOPPED (give-up)
 
 Stall detection keys off the ``distance`` field, never encoder ticks: measured
 on this robot the tick-to-mm ratio disagreed with ``distance`` by 50% between
@@ -59,6 +59,7 @@ class Reflex:
         self._last_distance = 0
         self._events = 0
         self._last_event_at = 0.0
+        self._drive_since = 0.0        # when the current DRIVE episode began
 
     # ------------------------------------------------------------------ public
     def reset(self, now: float | None = None) -> None:
@@ -71,6 +72,7 @@ class Reflex:
         if not self._started:
             self._started = True
             self._state_since = now
+            self._drive_since = now
             self._last_event_at = now
 
         if self.state is State.STOPPED:
@@ -162,7 +164,10 @@ class Reflex:
     # -------------------------------------------------------------- bookkeeping
     def _event(self, now: float, frame: Sensors) -> None:
         cfg = self.cfg
-        if now - self._last_event_at >= cfg.giveup_clean_s:
+        # "Clean" means clean *driving*, not merely elapsed time: back-off and
+        # rotate time must not count toward the 3 s that forgives older events.
+        dwell = now - max(self._drive_since, self._last_event_at)
+        if dwell >= cfg.giveup_clean_s:
             self._events = 0
         self._events += 1
         self._last_event_at = now
@@ -178,6 +183,7 @@ class Reflex:
         self.state = state
         self._state_since = now
         if state is State.DRIVE:
+            self._drive_since = now
             self._window.clear()
         record = {
             "t": now,

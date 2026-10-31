@@ -34,7 +34,7 @@ no sensor tells you the controller is alive.
 | `roverd/oi.py` | Safety-first facade over the vendored `pycreate2`: exclusive lock, 100 ms serial timeout, plausibility checks, mode tracked from commands sent, `poll()` that never raises after the first good frame |
 | `roverd/reflex.py` | `DRIVE / BACK_OFF / ROTATE / STOPPED` state machine, 20 Hz, deterministic (pluggable clock) |
 | `roverd/arbiter.py` | Priority (`safety > teleop > agent > reflex`), 500 ms TTL ceiling, 200 mm/s cap |
-| `roverd/log.py` | JSONL run log (frames, transitions, intents, stops, faults) plus the exact frame codec used by replay |
+| `roverd/log.py` | JSONL run log (frames, transitions, intents, stops, faults), run-id scoped for replay, plus the exact frame codec |
 | `roverd/watchdog.py` | The independent heartbeat thread |
 | `roverd/main.py` | CLI: `--port`, `--run-for`, `--log`, `--replay`; 20 Hz loop; startup self-check; signal handling |
 | `sim/fake_roomba.py` | PTY-backed OI emulator: 80-byte packet 100 replies, mode tracking, the Off-mode trap, scripted bumps/cliffs/stalls |
@@ -111,7 +111,8 @@ python3 -m venv .venv
 .venv/bin/python -m roverd.main --port /dev/ttyUSB0 --log /tmp/real.jsonl
 ```
 
-`--run-for` defaults to "until SIGINT/SIGTERM"; shutdown is always zero → `128` → close.
+`--run-for` defaults to "until SIGINT/SIGTERM"; shutdown is always zero → `128` → close. `--log` appends:
+every run is stamped with a run id, and `--replay` replays the most recent run in the file.
 
 Also useful:
 

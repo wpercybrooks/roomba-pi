@@ -1,6 +1,10 @@
 """JSONL run log: one object per line, append-only, replayable.
 
-    {"t": <monotonic>, "kind": "frame" | "transition" | "intent" | "stop" | "fault" | "meta", ...}
+    {"t": <monotonic>, "kind": "...", "run": "<id>", ...}
+
+Every record carries a ``run`` id. ``--log`` appends, so a file can hold several
+runs; ``replay()`` scopes itself to the most recent ``meta`` record, which also
+means the log always says which config produced what you are replaying.
 
 ``raw`` keeps the exact 80-byte payload, so a replay feeds the reflex precisely
 what it saw the first time — no re-deriving, no drift.
@@ -10,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import uuid
 from typing import Iterator
 
 from roverd.oi import Sensors
@@ -58,17 +63,22 @@ def dict_to_frame(d: dict) -> Sensors:
 
 
 class RunLog:
-    """Append-only writer. ``path`` is never truncated: consecutive runs append."""
+    """Append-only writer. ``path`` is never truncated: consecutive runs append.
+
+    Each instance gets its own ``run_id`` so a file holding several runs can
+    still be replayed one run at a time.
+    """
 
     SYNC_EVERY = 20
 
     def __init__(self, path: str):
         self.path = path
+        self.run_id = uuid.uuid4().hex[:12]
         self._fh = open(path, "a", encoding="utf-8")
         self._writes = 0
 
     def write(self, kind: str, t: float, **fields) -> dict:
-        record = {"t": t, "kind": kind}
+        record = {"t": t, "kind": kind, "run": self.run_id}
         record.update(fields)
         self._fh.write(json.dumps(record, separators=(",", ":"), default=_default) + "\n")
         self._fh.flush()
@@ -102,3 +112,15 @@ def read_log(path: str) -> Iterator[dict]:
                 yield json.loads(line)
             except json.JSONDecodeError:
                 continue          # truncated last line: the run died mid-write
+
+
+def last_run(records: list[dict]) -> list[dict]:
+    """The records of the most recent run in a possibly appended-to log file."""
+    metas = [i for i, r in enumerate(records) if r.get("kind") == "meta"]
+    if not metas:
+        return records
+    start = metas[-1]
+    run_id = records[start].get("run")
+    if run_id is None:            # pre-run-id log: the file is a single run
+        return records[start:]
+    return [r for r in records[start:] if r.get("run") == run_id]

@@ -20,7 +20,7 @@ import time
 from dataclasses import asdict
 
 from roverd.arbiter import Arbiter
-from roverd.log import RunLog, dict_to_frame, frame_to_dict, read_log
+from roverd.log import RunLog, dict_to_frame, frame_to_dict, last_run, read_log
 from roverd.oi import NoSensorFrame, PortBusy, RoverOI
 from roverd.reflex import Reflex, ReflexConfig, State
 from roverd.watchdog import Watchdog
@@ -151,15 +151,23 @@ def run_live(port: str, *, run_for: float | None = None, log_path: str | None = 
 
 
 def replay(path: str, *, out=print) -> int:
-    """Re-run the reflex over a logged frame sequence and compare transitions."""
-    records = list(read_log(path))
+    """Re-run the reflex over the most recent logged run and compare transitions."""
+    records = last_run(list(read_log(path)))
     meta = next((r for r in records if r.get("kind") == "meta"), None)
     cfg_fields = dict(meta["config"]) if meta else {}
     cfg_fields = {k: v for k, v in cfg_fields.items()
                   if k in ReflexConfig.__dataclass_fields__}
     config = ReflexConfig(**cfg_fields)
 
-    frames = [(r["t"], dict_to_frame(r)) for r in records if r.get("kind") == "frame"]
+    frames = []
+    for r in records:
+        if r.get("kind") != "frame":
+            continue
+        try:
+            frames.append((r["t"], dict_to_frame(r)))
+        except (KeyError, ValueError, TypeError) as exc:
+            out(f"REPLAY FAILED: bad frame record: {exc}")
+            return 1
     logged = [r for r in records if r.get("kind") == "transition"]
     if not frames:
         out("REPLAY FAILED: no frame records in log")
