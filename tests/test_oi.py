@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import pathlib
 import struct
+import threading
+import time
 
 import pytest
 
 from roverd.oi import Mode, NoSensorFrame, PortBusy, RoverOI, bump_side
+from roverd.watchdog import Watchdog
 from sim.fake_roomba import FakeRoomba
 
 # The measured 142 0 payload (26 bytes), zero-padded to packet 100's 80.
@@ -146,6 +149,31 @@ def test_mode_gating(fake):
         oi.zero()                                    # zeros are always allowed
     finally:
         oi.shutdown()
+
+
+def test_watchdog_zeroes_on_missed_heartbeat(driving, fake):
+    wd = Watchdog(lambda: driving.drive_direct(0, 0), timeout_s=0.3, period_s=0.02)
+    # Invariant 8: no lock is shared with the loop it guards.
+    assert not any(isinstance(v, type(threading.Lock())) for v in vars(wd).values())
+    driving.drive_direct(100, 100)
+    fake.sync()
+    wd.start()
+    try:
+        for _ in range(4):                        # beat for ~200 ms, then go quiet
+            wd.beat()
+            time.sleep(0.05)
+        idx = len(fake.writes)
+        deadline = time.monotonic() + 0.6
+        zero_frame = bytes([145]) + b"\x00\x00\x00\x00"
+        while time.monotonic() < deadline:
+            fake.sync(0.01)
+            if zero_frame in fake.writes[idx:]:
+                break
+            time.sleep(0.01)
+        assert zero_frame in fake.writes[idx:], "watchdog never zeroed the wheels"
+        assert wd.tripped >= 1
+    finally:
+        wd.stop()
 
 
 def test_fake_integrates_distance(driving, fake):
