@@ -5,7 +5,7 @@ Interface. The controller is a Raspberry Pi 4. This is the safety-first v0: a re
 arbiter, a run log, a watchdog — all tested against an emulated robot, with no robot on the desk.
 
 ```
-sensors (80 bytes) ──▶ reflex state machine ──▶ Intent ──▶ arbiter ──▶ drive_direct
+sensors (80 bytes) ──▶ reflex state machine ──▶ Intent ──▶ arbiter ──▶ RoverOI.command
                                   │                       (TTL + cap)
                                   └──▶ JSONL log ──▶ replay (identical transitions)
 ```
@@ -36,8 +36,8 @@ no sensor tells you the controller is alive.
 | `roverd/arbiter.py` | Priority (`safety > teleop > agent > reflex`), 500 ms TTL ceiling, 200 mm/s cap |
 | `roverd/log.py` | JSONL run log (frames, transitions, intents, stops, faults), run-id scoped for replay, plus the exact frame codec |
 | `roverd/watchdog.py` | The independent heartbeat thread |
-| `roverd/main.py` | CLI: `--port`, `--run-for`, `--log`, `--replay`; 20 Hz loop; startup self-check; signal handling |
-| `sim/fake_roomba.py` | PTY-backed OI emulator: 80-byte packet 100 replies, mode tracking, the Off-mode trap, scripted bumps/cliffs/stalls |
+| `roverd/main.py` | CLI: `--port`, `--run-for`, `--log`, `--replay`, `--speed`, `--max-speed`; 20 Hz loop; startup self-check; signal handling |
+| `sim/fake_roomba.py` | PTY-backed OI emulator: 80-byte packet 100 replies, mode tracking, the Off-mode trap, scripted bumps/cliffs/stalls/wheel drops |
 | `vendor/pycreate2/` | Upstream 0.8.0 (MIT), vendored and patched — see `vendor/pycreate2/PATCHES.md` |
 
 `pyserial` is the **only** dependency. `pycreate2` is vendored under `vendor/` (not installed, not published as
@@ -120,6 +120,8 @@ Also useful:
 python vendor/_verify_patches.py     # prove the vendored patches are intact, no hardware
 ```
 
+`--speed` sets the reflex drive speed and `--max-speed` the arbiter cap, both in mm/s.
+
 ### The simulator
 
 `FakeRoomba` owns a PTY pair and implements the OI subset this stack uses. It integrates commanded wheel
@@ -147,12 +149,12 @@ whole suite stays under 5 s.
 2. No intent older than 500 ms can produce motion.
 3. The arbiter clips to 200 mm/s even when a caller asks for 500.
 4. Cliff/wheel-drop latches survive further sensor frames until an explicit `reset()`.
-5. `passive()` sends `128`; afterwards `drive_direct()` raises. Opcode `173` appears in no default path, and a
-   test asserts it over a whole session and by grepping the modules.
+5. `passive()` sends `128`; afterwards `drive_direct()` raises (zeros excepted — the watchdog needs them). Opcode
+   `173` appears in no default path, and a test asserts that over a whole session and by scanning the modules.
 6. Startup refuses to enter Safe without a plausible frame within 500 ms.
 7. A short or implausible burst sets `sane=False` and keeps the last good frame.
 8. The watchdog zeroes the robot within 300 ms of a missed heartbeat and holds no lock shared with the loop.
-9. Every velocity write goes through the facade (`RoverOI.command`); the grep test fails CI otherwise.
+9. Every velocity write goes through the facade (`RoverOI.command`); the AST call-graph test fails CI otherwise.
 
 ## Layout
 
