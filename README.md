@@ -97,7 +97,7 @@ Python **3.12.3** was used for development; the project requires ≥3.11.
 python3 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
 
-# 1. 19 tests, no hardware, under 5 s
+# 1. 20 tests, no hardware, under 5 s
 .venv/bin/pytest -q
 
 # 2. a 30 s run against a real PTY running the simulator (~30 s wall-clock)
