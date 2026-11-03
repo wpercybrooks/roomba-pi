@@ -175,28 +175,45 @@ def test_mode_gating(fake):
 
 
 def test_watchdog_zeroes_on_missed_heartbeat(driving, fake):
-    wd = Watchdog(lambda: driving.drive_direct(0, 0), timeout_s=0.3, period_s=0.02)
+    # --- deterministic decision, driven by an injected clock ------------------
+    now = [0.0]
+    zeroed = []
+    wd = Watchdog(lambda: zeroed.append(now[0]), timeout_s=0.3, clock=lambda: now[0])
     # Invariant 8: no lock is shared with the loop it guards.
     assert not any(isinstance(v, type(threading.Lock())) for v in vars(wd).values())
+
+    now[0] = 0.29
+    assert wd.check_once() is False and zeroed == []      # fresh heartbeat: no write
+
+    now[0] = 0.31
+    assert wd.check_once() is True                        # 310 ms silent: zero
+    assert zeroed == [0.31] and wd.tripped == 1
+
+    now[0] = 0.40
+    assert wd.check_once() is False                       # re-armed, no spam
+
+    now[0] = 0.62
+    assert wd.check_once() is True and wd.tripped == 2    # another full timeout
+    wd.beat()
+    assert wd.check_once() is False                       # a beat clears the condition
+
+    # --- the thread still does it end to end, with a generous deadline --------
     driving.drive_direct(100, 100)
     fake.sync()
-    wd.start()
+    idx = len(fake.writes)
+    wd2 = Watchdog(lambda: driving.drive_direct(0, 0), timeout_s=0.3, period_s=0.02).start()
+    zero_frame = bytes([145]) + b"\x00\x00\x00\x00"
+    deadline = time.monotonic() + 2.0         # generous: only a failure waits this long
     try:
-        for _ in range(4):                        # beat for ~200 ms, then go quiet
-            wd.beat()
-            time.sleep(0.05)
-        idx = len(fake.writes)
-        deadline = time.monotonic() + 0.6
-        zero_frame = bytes([145]) + b"\x00\x00\x00\x00"
         while time.monotonic() < deadline:
             fake.sync(0.01)
             if zero_frame in fake.writes[idx:]:
                 break
             time.sleep(0.01)
-        assert zero_frame in fake.writes[idx:], "watchdog never zeroed the wheels"
-        assert wd.tripped >= 1
+        assert zero_frame in fake.writes[idx:], "watchdog thread never zeroed the wheels"
+        assert wd2.tripped >= 1
     finally:
-        wd.stop()
+        wd2.stop()
 
 
 def test_fake_integrates_distance(driving, fake):

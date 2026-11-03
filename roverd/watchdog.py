@@ -43,15 +43,25 @@ class Watchdog:
             self._thread.join(timeout=1.0)
             self._thread = None
 
+    def check_once(self) -> bool:
+        """One firing decision. Returns True if this call zeroed the wheels.
+
+        Public so tests can drive it from an injected clock instead of sleeping;
+        ``_run`` is a thin loop over it.
+        """
+        if self._clock() - self._last_beat <= self._timeout_s:
+            return False
+        try:
+            self._zero()
+        except Exception:
+            pass                     # a dead port must not kill the watchdog thread
+        self.tripped += 1
+        self._last_beat = self._clock()    # fire once per timeout, not per period
+        return True
+
     def _run(self) -> None:
         while not self._stop.wait(self._period_s):
-            if self._clock() - self._last_beat > self._timeout_s:
-                try:
-                    self._zero()
-                except Exception:
-                    pass                 # a dead port must not kill the watchdog thread
-                self.tripped += 1
-                self._last_beat = self._clock()    # fire once per timeout, not per period
+            self.check_once()
 
     def __enter__(self) -> "Watchdog":
         return self.start()
