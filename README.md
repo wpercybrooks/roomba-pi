@@ -80,9 +80,12 @@ does (measured 2026-10-30/31):
   awake with a periodic `start()`, not `wake()`.
 - **Idle draw while the OI is awake is ~100–160 mA** (≈2.5 W); overnight it eats about 60% of the pack. The
   simulator models 159 mA. Unplug the cable when you are done.
-- **The bump bits decode into swapped field names in the vendored decoder.** `BumpsAndWheelDrop.bump_left` is
-  filled from OI bit 0 (bump *right*) and `bump_right` from bit 1. `roverd.oi.bump_side()` corrects this once,
-  where the protocol knowledge belongs. Verify the side on real hardware before trusting an unattended turn.
+- **pycreate2 0.8.0 mislabels bump and wheel-drop sides.** Upstream constructs `BumpsAndWheelDrop` as
+  `(BUMP_RIGHT, BUMP_LEFT, WHEEL_DROP_RIGHT, WHEEL_DROP_LEFT)` into fields named
+  `(bump_left, bump_right, wheeldrop_left, wheeldrop_right)`, so a physical left bump surfaces as
+  `bump_right`. `roverd` backs off *away from the side it reads*, so a wrong label means backing **into** the
+  obstacle. The vendored copy corrects the construction (`vendor/pycreate2/PATCHES.md` #8) and the simulator
+  emits spec-order bits; still confirm the side on the robot before trusting an unattended turn.
 
 Battery seen on this unit: 2068 mAh capacity, 1887 mAh charge, ~15.89 V at rest; runtime still unmeasured.
 
