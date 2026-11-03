@@ -156,6 +156,12 @@ whole suite stays under 5 s.
 8. The watchdog zeroes the robot within 300 ms of a missed heartbeat and holds no lock shared with the loop.
 9. Every velocity write goes through the facade (`RoverOI.command`); the AST call-graph test fails CI otherwise.
 
+## Working on this repo
+
+The checkout may live on exFAT (an SD card, a shared folder), where every file is mode 777 and Git reports the
+whole tree as modified with empty diffs. This clone sets `core.filemode false`, so `git status` shows only real
+content changes. If you re-clone onto such media, set it again: `git config core.filemode false`.
+
 ## Layout
 
 ```
