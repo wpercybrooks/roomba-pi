@@ -72,6 +72,10 @@ def test_oi_decodes_measured_values():
     assert s.current == -159
     assert s.distance == 0 and s.angle == 0
     assert bump_side(s) is None
+    # Wire bits -> field names -> facade (bit1 is a physical left bump, bit0 right).
+    # Red-proved against unpatched packets.py in commit fb472ac.
+    assert bump_side(make_frame(bump_left=True)) == "left"
+    assert bump_side(make_frame(bump_right=True)) == "right"
 
 
 def test_drive_direct_wrapper_reorders(driving, fake):
@@ -80,13 +84,6 @@ def test_drive_direct_wrapper_reorders(driving, fake):
     frames = [w for w in fake.writes if w[0] == 145]
     assert frames, "no drive-direct frame was sent"
     assert frames[-1] == bytes([145]) + struct.pack(">hh", -50, 100)   # right first
-
-
-def test_bump_side_masks_bits():
-    # Wire bits -> field names -> facade. Bit1 is a physical left bump, bit0 right.
-    assert bump_side(make_frame(bump_left=True)) == "left"
-    assert bump_side(make_frame(bump_right=True)) == "right"
-    assert bump_side(make_frame()) is None
 
 
 def test_oi_rejects_short_burst(driving, fake):
@@ -133,8 +130,12 @@ def test_never_sends_173(driving, fake):
     assert fake.mode == 1                          # PASSIVE
     assert fake.trap_entered is False
 
-    # Invariant 9: velocity writes live only in the facade; main goes through
-    # command(). Checked on the AST, so docstrings cannot mask or trip it.
+
+def test_velocity_calls_only_in_facade():
+    """Invariant 9: velocity writes live only in oi.py; main goes through command().
+
+    Checked on the AST, so docstrings cannot mask or trip it.
+    """
     offenders = []
     for path in (ROOT / "roverd").glob("*.py"):
         called = _called_names(path)
