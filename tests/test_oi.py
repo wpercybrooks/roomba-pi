@@ -13,6 +13,7 @@ import pytest
 from roverd.oi import Mode, NoSensorFrame, PortBusy, RoverOI, bump_side
 from roverd.watchdog import Watchdog
 from sim.fake_roomba import FakeRoomba
+from conftest import make_frame
 
 # The measured 142 0 payload (26 bytes), zero-padded to packet 100's 80.
 MEASURED_26 = bytes.fromhex(
@@ -79,6 +80,13 @@ def test_drive_direct_wrapper_reorders(driving, fake):
     frames = [w for w in fake.writes if w[0] == 145]
     assert frames, "no drive-direct frame was sent"
     assert frames[-1] == bytes([145]) + struct.pack(">hh", -50, 100)   # right first
+
+
+def test_bump_side_masks_bits():
+    # Wire bits -> field names -> facade. Bit1 is a physical left bump, bit0 right.
+    assert bump_side(make_frame(bump_left=True)) == "left"
+    assert bump_side(make_frame(bump_right=True)) == "right"
+    assert bump_side(make_frame()) is None
 
 
 def test_oi_rejects_short_burst(driving, fake):

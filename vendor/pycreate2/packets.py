@@ -96,11 +96,15 @@ def SensorPacketDecoder(data):
 
     # self.bumps_and_wheel_drops = BumpsAndWheelDrop(data[0:1])
     d = unpack_unsigned_byte(data[0:1])[0]
+    # PATCH: upstream passed (BUMP_RIGHT, BUMP_LEFT, WHEEL_DROP_RIGHT, WHEEL_DROP_LEFT) into
+    # fields named (bump_left, bump_right, wheeldrop_left, wheeldrop_right), so every side was
+    # swapped: a physical left bump surfaced as bump_right. The field names are the contract;
+    # the wire constants in OI.py are correct and unchanged. See PATCHES.md #8.
     bumps_wheeldrops = BumpsAndWheelDrop(
-        bool(d & BUMPS_WHEEL_DROPS.BUMP_RIGHT),
         bool(d & BUMPS_WHEEL_DROPS.BUMP_LEFT),
-        bool(d & BUMPS_WHEEL_DROPS.WHEEL_DROP_RIGHT),
-        bool(d & BUMPS_WHEEL_DROPS.WHEEL_DROP_LEFT)
+        bool(d & BUMPS_WHEEL_DROPS.BUMP_RIGHT),
+        bool(d & BUMPS_WHEEL_DROPS.WHEEL_DROP_LEFT),
+        bool(d & BUMPS_WHEEL_DROPS.WHEEL_DROP_RIGHT)
     )
     d = unpack_unsigned_byte(data[7:8])[0]
     overcurrents = WheelOvercurrents(

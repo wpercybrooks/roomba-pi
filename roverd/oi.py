@@ -59,20 +59,15 @@ def _plausible(s: Sensors) -> bool:
 
 
 def bump_side(s: Sensors) -> str | None:
-    """Which side was bumped, in *physical* terms: "left", "right" or None.
+    """Which side was bumped, in physical terms: "left", "right" or None.
 
-    pycreate2 fills ``BumpsAndWheelDrop`` as
-    ``bump_left = bit0`` and ``bump_right = bit1``, while the OI wire format has
-    bit0 = bump **right** and bit1 = bump **left**. The vendored field names are
-    therefore swapped relative to the robot; we correct it here, once, where the
-    protocol knowledge belongs. (Reported in SESSION_NOTES.)
+    The vendored decoder's field names match the wire bits (PATCHES.md #8), so
+    this reads them directly — no correction layer.
     """
     b = s.bumps_wheeldrops
-    left = bool(b.bump_right)      # bit1 on the wire
-    right = bool(b.bump_left)      # bit0 on the wire
-    if left:
+    if b.bump_left:
         return "left"
-    if right:
+    if b.bump_right:
         return "right"
     return None
 

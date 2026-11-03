@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Verify the vendored pycreate2 patches without hardware.
 
-    python build/vendor/_verify_patches.py
+    python vendor/_verify_patches.py
 
-Installs a stub `serial` module, imports the vendored package, and checks the five behavioural patches:
-no-op destructor, gated stop(), read-until-80, None on short burst, and the sane/raw fields.
+Installs a stub `serial` module, imports the vendored package, and checks the patch set: no-op destructor,
+gated stop(), read-until-80, None on short burst, sane/raw fields, and the corrected bump/wheel-drop bit
+order (12 checks).
 """
 from __future__ import annotations
 
@@ -87,6 +88,14 @@ check("decoder: sane flag present and True", getattr(s, "sane", None) is True)
 check("decoder: raw payload kept", len(getattr(s, "raw", b"")) == 80)
 check("decoder: measured values", (s.voltage, s.battery_charge, s.battery_capacity) == (15888, 1887, 2068),
       f"{s.voltage} mV {s.battery_charge}/{s.battery_capacity} mAh")
+
+# 1b. patch #8: the wire bit and the field name must agree on the side
+BIT0_ONLY = bytes([0x01]) + MEASURED_80[1:]
+BIT1_ONLY = bytes([0x02]) + MEASURED_80[1:]
+b0 = SensorPacketDecoder(BIT0_ONLY).bumps_wheeldrops
+check("decoder: wire bit0 is the RIGHT bump", b0.bump_right is True and b0.bump_left is False, str(b0))
+b1 = SensorPacketDecoder(BIT1_ONLY).bumps_wheeldrops
+check("decoder: wire bit1 is the LEFT bump", b1.bump_left is True and b1.bump_right is False, str(b1))
 
 # 2. full burst decodes
 bot = make_robot(MEASURED_80)

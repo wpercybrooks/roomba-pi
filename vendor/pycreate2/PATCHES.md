@@ -1,6 +1,6 @@
 # Deviations from pycreate2 0.8.0
 
-**Seven patches, no refactors.** Each exists because of something measured on this specific robot (a Roomba
+**Eight patches, no refactors.** Each exists because of something measured on this specific robot (a Roomba
 614 over an FTDI FT231X cable at 115200 8N1). Re-basing onto a newer upstream — or swapping to a successor
 library — means re-applying exactly this list.
 
@@ -27,6 +27,7 @@ code; `../_verify_patches.py` is the tool that proves these patches still hold.
 | # | Patch | Why |
 | --- | --- | --- |
 | 6 | `Sensors` gains `sane` (always True when it decodes) and `raw` (the 80 bytes) | the facade logs raw frames and validates plausibility itself, since there is no checksum to lean on |
+| 8 | `BumpsAndWheelDrop` is constructed in field order: `(BUMP_LEFT, BUMP_RIGHT, WHEEL_DROP_LEFT, WHEEL_DROP_RIGHT)` | upstream passed the wire constants in the opposite order, so every side was swapped: `bump_left` carried the **right** bumper's bit. `roverd` decides which way to back off from these fields, and the wrong side means backing off *into* the obstacle. Corrected here rather than worked around in the facade; the wire constants themselves were already correct |
 
 ## `__init__.py`
 
