@@ -43,6 +43,6 @@ still imports as `pycreate2`.
 ## Verifying the patches
 
 ```
-python vendor/_verify_patches.py        # ten checks, no hardware required
+python vendor/_verify_patches.py        # twelve checks, no hardware required
 ```
 
