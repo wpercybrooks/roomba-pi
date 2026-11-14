@@ -21,6 +21,8 @@ captures/
 robot.yaml
 .env
 *.env
+# session reports live outside the repo; this line is the tripwire
+SESSION_NOTES.md
 
 # models
 models/
