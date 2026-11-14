@@ -9,6 +9,7 @@ order (12 checks).
 """
 from __future__ import annotations
 
+import gc
 import os
 import sys
 import types
@@ -123,9 +124,12 @@ check("stop(confirm_off=True): sends 173", bytes([173]) in bot.SCI.ser.written, 
 
 # 6. destructor is inert
 bot = make_robot(MEASURED_80)
-before = list(bot.SCI.ser.written)
+ser = bot.SCI.ser                       # hold the transport across the del
+before = list(ser.written)
 del bot
-check("__del__: sends nothing", True)   # nothing observable: the stub records writes per instance
+gc.collect()
+check("__del__: sends nothing", ser.written == before,
+      " ".join(f.hex() for f in ser.written[len(before):]))
 
 # 7. passive() alias exists and sends 128
 bot = make_robot(MEASURED_80)
